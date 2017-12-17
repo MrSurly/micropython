@@ -113,6 +113,15 @@ STATIC mp_obj_t esp_gpio_matrix_out(size_t n_args, const mp_obj_t *args) {
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(esp_gpio_matrix_out_obj, 4, 4, esp_gpio_matrix_out);
 
+#if CONFIG_BT_ENABLED
+extern bool rtc_enable_bluetooth;
+STATIC mp_obj_t esp_bluetooth_allocate_memory(mp_obj_t allocate) {
+    rtc_enable_bluetooth = mp_obj_is_true(allocate);
+    return mp_const_none;
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_1(esp_bluetooth_allocate_memory_obj, esp_bluetooth_allocate_memory);
+#endif
+
 STATIC mp_obj_t esp_neopixel_write_(mp_obj_t pin, mp_obj_t buf, mp_obj_t timing) {
     mp_buffer_info_t bufinfo;
     mp_get_buffer_raise(buf, &bufinfo, MP_BUFFER_READ);
@@ -135,6 +144,8 @@ STATIC const mp_rom_map_elem_t esp_module_globals_table[] = {
 
     { MP_ROM_QSTR(MP_QSTR_gpio_matrix_in), MP_ROM_PTR(&esp_gpio_matrix_in_obj) },
     { MP_ROM_QSTR(MP_QSTR_gpio_matrix_out), MP_ROM_PTR(&esp_gpio_matrix_out_obj) },
+
+    { MP_ROM_QSTR(MP_QSTR_bluetooth_allocate_memory), MP_ROM_PTR(&esp_bluetooth_allocate_memory_obj) },
 
     { MP_ROM_QSTR(MP_QSTR_neopixel_write), MP_ROM_PTR(&esp_neopixel_write_obj) },
     { MP_ROM_QSTR(MP_QSTR_dht_readinto), MP_ROM_PTR(&dht_readinto_obj) },

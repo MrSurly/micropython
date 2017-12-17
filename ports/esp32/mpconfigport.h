@@ -141,6 +141,7 @@
 #define MICROPY_PY_USSL_FINALISER           (1)
 #define MICROPY_PY_WEBSOCKET                (1)
 #define MICROPY_PY_FRAMEBUF                 (1)
+#define MICROPY_PY_NETWORK_LAN              (0)
 
 // fatfs configuration
 #define MICROPY_FATFS_ENABLE_LFN            (1)

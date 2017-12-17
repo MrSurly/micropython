@@ -33,6 +33,7 @@ SECTIONS
     *rtc_wake_stub*.o(.bss .bss.*)
     *rtc_wake_stub*.o(COMMON)
     _rtc_bss_end = ABSOLUTE(.);
+    *(.rtc_enable_bluetooth)
   } > rtc_slow_seg
 
   /* Send .iram0 code to iram */
@@ -104,6 +105,7 @@ SECTIONS
   .dram0.data :
   {
     _data_start = ABSOLUTE(.);
+    *(.mp_task_heap)
     *(.data)
     *(.data.*)
     *(.gnu.linkonce.d.*)

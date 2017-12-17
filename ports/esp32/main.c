@@ -48,6 +48,7 @@
 #include "uart.h"
 #include "modmachine.h"
 #include "mpthreadport.h"
+#include "rom/rtc.h"
 
 // MicroPython runs as a task under FreeRTOS
 #define MP_TASK_PRIORITY        (ESP_TASK_PRIO_MIN + 1)
@@ -57,7 +58,17 @@
 
 STATIC StaticTask_t mp_task_tcb;
 STATIC StackType_t mp_task_stack[MP_TASK_STACK_LEN] __attribute__((aligned (8)));
-STATIC uint8_t mp_task_heap[MP_TASK_HEAP_SIZE];
+
+// Allocate an area of memory at the start of DRAM, right behind the 64kB
+// Bluetooth area (if enabled).
+__attribute__((section(".mp_task_heap")))
+STATIC uint8_t mp_task_heap[MP_TASK_HEAP_SIZE - CONFIG_BT_RESERVE_DRAM];
+
+#if CONFIG_BT_ENABLED
+bool bluetooth_enabled;
+__attribute__((section(".rtc_enable_bluetooth")))
+bool rtc_enable_bluetooth;
+#endif
 
 void mp_task(void *pvParameter) {
     volatile uint32_t sp = (uint32_t)get_sp();
@@ -66,11 +77,28 @@ void mp_task(void *pvParameter) {
     #endif
     uart_init();
 
+    if (rtc_get_reset_reason(0) == POWERON_RESET) {
+        // Initialize the flag whether BT is in use.
+        rtc_enable_bluetooth = false;
+    }
+
 soft_reset:
     // initialise the stack pointer for the main thread
     mp_stack_set_top((void *)sp);
     mp_stack_set_limit(MP_TASK_STACK_SIZE - 1024);
+#if CONFIG_BT_ENABLED
+    bluetooth_enabled = rtc_enable_bluetooth;
+    if (rtc_enable_bluetooth) {
+        // Use only mp_task_heap as heap, leave Bluetooth area alone.
+        gc_init(mp_task_heap, mp_task_heap + sizeof(mp_task_heap));
+    } else {
+        // Use BT area and mp_task_heap area as heap.
+        uint32_t heap_start = (uint32_t)mp_task_heap; // work around the (normally legit!) -Werror=array-bounds
+        gc_init((uint8_t*)heap_start - CONFIG_BT_RESERVE_DRAM, mp_task_heap + sizeof(mp_task_heap));
+    }
+#else
     gc_init(mp_task_heap, mp_task_heap + sizeof(mp_task_heap));
+#endif
     mp_init();
     mp_obj_list_init(mp_sys_path, 0);
     mp_obj_list_append(mp_sys_path, MP_OBJ_NEW_QSTR(MP_QSTR_));
@@ -111,6 +139,7 @@ soft_reset:
 
     mp_deinit();
     fflush(stdout);
+    rtc_enable_bluetooth = bluetooth_enabled;
     goto soft_reset;
 }
 
