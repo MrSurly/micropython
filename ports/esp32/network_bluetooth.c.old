@@ -2304,13 +2304,6 @@ STATIC void network_bluetooth_gap_event_handler(
     }
 }
 
-STATIC void network_bluetooth_adv_updated() {
-    network_bluetooth_obj_t* self = network_bluetooth_get_singleton();
-    esp_ble_gap_stop_advertising();
-    esp_ble_gap_config_adv_data(&self->adv_data);
-
-    // Restart will be handled in network_bluetooth_gap_event_handler
-}
 
 
 /******************************************************************************/
