@@ -189,7 +189,8 @@ SRC_C = \
 
 #xbt
 ifeq ($(MICROPY_ESP32_BLUETOOTH),1)
-SRC_C += network_bt.c
+SRC_C += modbluetooth.c
+SRC_C += bluetooth_le.c
 endif
 
 EXTMOD_SRC_C = $(addprefix extmod/,\
@@ -263,6 +264,7 @@ ESPIDF_DRIVER_O = $(addprefix $(ESPCOMP)/driver/,\
 $(BUILD)/$(ESPCOMP)/bt/%.o: CFLAGS = $(CFLAGS_BASE) $(INC) $(INC_ESPCOMP_BASE) $(INC_ESPCOMP_BT)
 ESPIDF_BT_O = $(addprefix $(ESPCOMP)/bt/,\
 	bluedroid/api/esp_bt_main.o \
+	bluedroid/api/esp_bt_device.o \
 	bluedroid/api/esp_gap_ble_api.o \
 	bluedroid/api/esp_gattc_api.o \
 	bluedroid/api/esp_gatts_api.o \
