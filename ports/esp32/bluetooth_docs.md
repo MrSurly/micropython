@@ -20,7 +20,8 @@
 The Bluetooth object is a global singleton.
 
 ```python
-import network
+import bluetooth
+ble = bluetooth.LE()
 bluetooth = network.Bluetooth()
 ```
 
