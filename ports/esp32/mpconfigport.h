@@ -139,7 +139,7 @@
 #define MICROPY_PY_USSL                     (1)
 #define MICROPY_SSL_MBEDTLS                 (1)
 #define MICROPY_PY_USSL_FINALISER           (1)
-#define MICROPY_PY_WEBSOCKET                (1)
+#define MICROPY_PY_WEBSOCKET                (0)
 #define MICROPY_PY_FRAMEBUF                 (1)
 
 // fatfs configuration
@@ -162,6 +162,7 @@
 
 // extra built in modules to add to the list of known ones
 extern const struct _mp_obj_module_t esp_module;
+extern const struct _mp_obj_module_t esp32_module;
 extern const struct _mp_obj_module_t utime_module;
 extern const struct _mp_obj_module_t uos_module;
 extern const struct _mp_obj_module_t mp_module_usocket;
@@ -171,6 +172,7 @@ extern const struct _mp_obj_module_t mp_module_onewire;
 
 #define MICROPY_PORT_BUILTIN_MODULES \
     { MP_OBJ_NEW_QSTR(MP_QSTR_esp), (mp_obj_t)&esp_module }, \
+    { MP_OBJ_NEW_QSTR(MP_QSTR_esp32), (mp_obj_t)&esp32_module }, \
     { MP_OBJ_NEW_QSTR(MP_QSTR_utime), (mp_obj_t)&utime_module }, \
     { MP_OBJ_NEW_QSTR(MP_QSTR_uos), (mp_obj_t)&uos_module }, \
     { MP_OBJ_NEW_QSTR(MP_QSTR_usocket), (mp_obj_t)&mp_module_usocket }, \
