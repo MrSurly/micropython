@@ -29,6 +29,7 @@
 enum { PHY_LAN8720, PHY_TLK110 };
 
 MP_DECLARE_CONST_FUN_OBJ_KW(get_lan_obj);
+MP_DECLARE_CONST_FUN_OBJ_KW(get_ppp_obj);
 MP_DECLARE_CONST_FUN_OBJ_VAR_BETWEEN(esp_ifconfig_obj);
 
 #endif
