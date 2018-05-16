@@ -32,4 +32,6 @@ MP_DECLARE_CONST_FUN_OBJ_KW(get_lan_obj);
 MP_DECLARE_CONST_FUN_OBJ_1(get_ppp_obj);
 MP_DECLARE_CONST_FUN_OBJ_VAR_BETWEEN(esp_ifconfig_obj);
 
+void usocket_events_deinit(void);
+
 #endif
