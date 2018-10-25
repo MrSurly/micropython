@@ -36,6 +36,11 @@
 #include "py/mphal.h"
 #include "modmachine.h"
 
+static enum {
+    CIRCULAR,
+    SEQUENTIAL
+} dac_mode_t;
+
 typedef struct _mdac_obj_t {
     mp_obj_base_t base;
     gpio_num_t gpio_id;
@@ -46,6 +51,87 @@ STATIC const mdac_obj_t mdac_obj[] = {
     {{&machine_dac_type}, GPIO_NUM_25, DAC_CHANNEL_1},
     {{&machine_dac_type}, GPIO_NUM_26, DAC_CHANNEL_2},
 };
+
+
+#include <stdio.h>
+#include <stdlib.h>
+
+#define LOCK()
+#define UNLOCK()
+
+typedef struct Qitem {
+  struct Qitem* next;
+  void *item;
+} Qitem;
+
+typedef struct {
+  Qitem* head;
+  Qitem* tail;
+  size_t size;
+  mp_obj_t *item;
+} Qhead;
+
+void queue_init(Qhead* q) {
+  q->head = q->tail = NULL;
+  q->size = 0;
+}
+
+int queue_empty(Qhead* q) {
+  return q->size == 0;
+}
+int queue_size(Qhead* q) {
+  return q->size;
+}
+
+int queue_push(Qhead* q, mp_obj_t* item) {
+  LOCK();
+  Qitem* i = (Qitem*)malloc(sizeof(Qitem));
+  if (i == NULL) {
+    return 0;
+  }
+  i->item = item;
+  i->next = NULL;
+  if (queue_empty(q)) {
+    q->head = q->tail = i;
+  } else {
+    q->tail->next = i;
+    q->tail = i;
+  }
+  size_t s = ++q->size;
+  UNLOCK();
+  return s;
+}
+
+mp_obj_t* queue_pop(Qhead* q) {
+  LOCK();
+  if (queue_empty(q)) {
+    return NULL;
+  }
+  --q->size;
+
+  Qitem* i = q->head;
+  q->head = i->next;
+  i->next = NULL;
+  if (q->head == NULL) {
+    q->tail = NULL;
+  }
+  UNLOCK();
+  return i->item;
+}
+
+/*
+void queue_dump(Qhead* q) {
+  printf("---\n");
+  printf("head: %p\n", q->head);
+  printf("tail: %p\n", q->tail);
+  printf("size: %d\n", q->size);
+  Qitem *i = q->head;
+  while(i) {
+    printf("%p: value: %p --> %p\n", i, i->item, i->next);
+    i = i->next;
+  }
+}
+*/
 
 STATIC mp_obj_t mdac_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw,
         const mp_obj_t *args) {
@@ -84,6 +170,8 @@ MP_DEFINE_CONST_FUN_OBJ_2(mdac_write_obj, mdac_write);
 
 STATIC const mp_rom_map_elem_t mdac_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_write), MP_ROM_PTR(&mdac_write_obj) },
+    { MP_ROM_QSTR(MP_QSTR_CIRCULAR), MP_ROM_INT(CIRCULAR) },
+    { MP_ROM_QSTR(MP_QSTR_SEQUENTIAL), MP_ROM_INT(SEQUENTIAL) },
 };
 
 STATIC MP_DEFINE_CONST_DICT(mdac_locals_dict, mdac_locals_dict_table);
