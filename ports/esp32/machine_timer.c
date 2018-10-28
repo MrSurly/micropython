@@ -30,35 +30,14 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "driver/timer.h"
 #include "py/obj.h"
 #include "py/runtime.h"
 #include "modmachine.h"
 #include "mphalport.h"
+#include "machine_timer.h"
 
 #define TIMER_INTR_SEL TIMER_INTR_LEVEL
-#define TIMER_DIVIDER  8
-
-// TIMER_BASE_CLK is normally 80MHz. TIMER_DIVIDER ought to divide this exactly
-#define TIMER_SCALE    (TIMER_BASE_CLK / TIMER_DIVIDER)
-
 #define TIMER_FLAGS    0
-
-typedef struct _machine_timer_obj_t {
-    mp_obj_base_t base;
-    mp_uint_t group;
-    mp_uint_t index;
-
-    mp_uint_t repeat;
-    // ESP32 timers are 64-bit
-    uint64_t period;
-
-    mp_obj_t callback;
-
-    intr_handle_t handle;
-} machine_timer_obj_t;
-
-const mp_obj_type_t machine_timer_type;
 
 STATIC esp_err_t check_esp_err(esp_err_t code) {
     if (code) {
@@ -92,11 +71,15 @@ STATIC mp_obj_t machine_timer_make_new(const mp_obj_type_t *type, size_t n_args,
     return self;
 }
 
-STATIC void machine_timer_disable(machine_timer_obj_t *self) {
-    if (self->handle) {
-        timer_pause(self->group, self->index);
-        esp_intr_free(self->handle);
-        self->handle = NULL;
+bool machine_timer_is_running(machine_timer_obj_t* timer) {
+    return timer->handle != NULL;
+}
+
+void machine_timer_disable(machine_timer_obj_t *timer) {
+    if (timer->handle) {
+        timer_pause(timer->group, timer->index);
+        esp_intr_free(timer->handle);
+        timer->handle = NULL;
     }
 }
 
@@ -111,26 +94,30 @@ STATIC void machine_timer_isr(void *self_in) {
         device->int_clr_timers.t0 = 1;
     }
     device->hw_timer[self->index].config.alarm_en = self->repeat;
-
-    mp_sched_schedule(self->callback, self);
-    mp_hal_wake_main_task_from_isr();
+    if (self->c_callback != NULL) {
+        self->c_callback(self->c_callback_param);
+    } else {
+        mp_sched_schedule(self->callback, self);
+        mp_hal_wake_main_task_from_isr();
+    }
 }
 
-STATIC void machine_timer_enable(machine_timer_obj_t *self) {
+void machine_timer_enable(machine_timer_obj_t *timer, void* c_callback_param) {
     timer_config_t config;
     config.alarm_en = TIMER_ALARM_EN;
-    config.auto_reload = self->repeat;
+    config.auto_reload = timer->repeat;
     config.counter_dir = TIMER_COUNT_UP;
     config.divider = TIMER_DIVIDER;
     config.intr_type = TIMER_INTR_LEVEL;
     config.counter_en = TIMER_PAUSE;
+    timer->c_callback_param = c_callback_param;
 
-    check_esp_err(timer_init(self->group, self->index, &config));
-    check_esp_err(timer_set_counter_value(self->group, self->index, 0x00000000));
-    check_esp_err(timer_set_alarm_value(self->group, self->index, self->period));
-    check_esp_err(timer_enable_intr(self->group, self->index));
-    check_esp_err(timer_isr_register(self->group, self->index, machine_timer_isr, (void*)self, TIMER_FLAGS, &self->handle));
-    check_esp_err(timer_start(self->group, self->index));
+    check_esp_err(timer_init(timer->group, timer->index, &config));
+    check_esp_err(timer_set_counter_value(timer->group, timer->index, 0x00000000));
+    check_esp_err(timer_set_alarm_value(timer->group, timer->index, timer->period));
+    check_esp_err(timer_enable_intr(timer->group, timer->index));
+    check_esp_err(timer_isr_register(timer->group, timer->index, machine_timer_isr, timer, TIMER_FLAGS, &timer->handle));
+    check_esp_err(timer_start(timer->group, timer->index));
 }
 
 STATIC mp_obj_t machine_timer_init_helper(machine_timer_obj_t *self, mp_uint_t n_args, const mp_obj_t *pos_args, mp_map_t *kw_args) {
@@ -173,9 +160,10 @@ STATIC mp_obj_t machine_timer_init_helper(machine_timer_obj_t *self, mp_uint_t n
 
     self->repeat = args[ARG_mode].u_int;
     self->callback = args[ARG_callback].u_obj;
+    self->c_callback = NULL;
     self->handle = NULL;
 
-    machine_timer_enable(self);
+    machine_timer_enable(self, NULL);
 
     return mp_const_none;
 }
