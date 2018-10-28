@@ -119,10 +119,9 @@ typedef struct _mdac_obj_t {
 } mdac_obj_t;
 
 STATIC mdac_obj_t mdac_obj[] = {
-    {{&machine_dac_type}, GPIO_NUM_25, DAC_CHANNEL_1, NULL, NULL, {}, NULL, NULL,  CIRCULAR},
+    {{&machine_dac_type}, GPIO_NUM_25, DAC_CHANNEL_1, NULL, NULL, {}, NULL, NULL, CIRCULAR},
     {{&machine_dac_type}, GPIO_NUM_26, DAC_CHANNEL_2, NULL, NULL, {}, NULL, NULL, CIRCULAR},
 };
-
 
 
 /*
@@ -223,7 +222,7 @@ STATIC mp_obj_t mdac_step(mp_obj_t self_in) {
   xSemaphoreTake(self->mutex, portMAX_DELAY);
   bool data_output = mdac_output_next(self, &byte_out);
   xSemaphoreGive(self->mutex);
-  return MP_OBJ_NEW_SMALL_INT(byte_out);
+  return data_output ? MP_OBJ_NEW_SMALL_INT(byte_out) : mp_const_none;
 }
 MP_DEFINE_CONST_FUN_OBJ_1(mdac_step_obj, mdac_step);
 
@@ -313,6 +312,23 @@ STATIC mp_obj_t mdac_set_freq(mp_obj_t self_in, mp_obj_t value_in) {
 }
 MP_DEFINE_CONST_FUN_OBJ_2(mdac_set_freq_obj, mdac_set_freq);
 
+STATIC mp_obj_t mdac_mode(mp_uint_t n_args, const mp_obj_t *args) {
+  mdac_obj_t *self = args[0];
+  if (n_args == 1) {
+    return MP_OBJ_NEW_SMALL_INT(self->mode);
+  } else {
+    mp_int_t value;
+    bool ok = mp_obj_get_int_maybe(args[1], &value);
+    if(ok && (value == CIRCULAR || value == SEQUENTIAL)){
+      self->mode = value;
+      return mp_const_none;
+    }
+    mp_raise_ValueError(NULL);
+
+  }
+}
+STATIC MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mdac_mode_obj, 1, 2, mdac_mode);
+
 STATIC mp_obj_t mdac_write(mp_obj_t self_in, mp_obj_t value_in) {
     mdac_obj_t *self = self_in;
     printf("self: %p\n", self);
@@ -333,6 +349,7 @@ STATIC const mp_rom_map_elem_t mdac_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_set_freq), MP_ROM_PTR(&mdac_set_freq_obj) },
     { MP_ROM_QSTR(MP_QSTR_start), MP_ROM_PTR(&mdac_start_obj) },
     { MP_ROM_QSTR(MP_QSTR_stop), MP_ROM_PTR(&mdac_stop_obj) },
+    { MP_ROM_QSTR(MP_QSTR_mode), MP_ROM_PTR(&mdac_mode_obj) },
     { MP_ROM_QSTR(MP_QSTR_enqueue_data), MP_ROM_PTR(&mdac_enqueue_data_obj) },
     { MP_ROM_QSTR(MP_QSTR_clear_queue), MP_ROM_PTR(&mdac_clear_queue_obj) },
     { MP_ROM_QSTR(MP_QSTR_step), MP_ROM_PTR(&mdac_step_obj) },
