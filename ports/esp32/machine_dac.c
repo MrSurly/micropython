@@ -124,7 +124,6 @@ STATIC mdac_obj_t mdac_obj[] = {
 };
 
 
-/*
 void queue_dump(Qhead* q) {
   printf("---\n");
   printf("head: %p\n", q->head);
@@ -132,11 +131,10 @@ void queue_dump(Qhead* q) {
   printf("size: %d\n", q->size);
   Qitem *i = q->head;
   while(i) {
-    printf("%p: value: %p --> %p\n", i, i->item, i->next);
+    printf("%p --> %p (value: %p)\n", i, i->next, i->item);
     i = i->next;
   }
 }
-*/
 
 STATIC mp_obj_t mdac_make_new(const mp_obj_type_t *type, size_t n_args, size_t n_kw,
         const mp_obj_t *args) {
@@ -212,6 +210,25 @@ STATIC bool mdac_output_next (mdac_obj_t* self, uint8_t* byte_out) {
   }
   return false;
 }
+STATIC mp_obj_t mdac_dump(mp_obj_t self_in) {
+  mdac_obj_t* self = self_in;
+  printf("===\n");
+  queue_dump(&self->queue);
+  printf("---\n");
+  Qitem* cur = self->queue.head;
+  while(cur) {
+    printf("%s %p:\n", self->cur_queue_item == cur ? ">>" : "  ", cur->item);
+    mp_obj_t iter = mp_getiter(cur->item, NULL);
+    mp_obj_t item;
+    while((item = mp_iternext(iter)) != MP_OBJ_STOP_ITERATION) {
+      printf("%02X ", mp_obj_get_int(item));
+    }
+    printf("\n");
+    cur = cur->next;
+  }
+  return mp_const_none;
+}
+MP_DEFINE_CONST_FUN_OBJ_1(mdac_dump_obj, mdac_dump);
 
 STATIC mp_obj_t mdac_step(mp_obj_t self_in) {
   mdac_obj_t* self = self_in;
@@ -350,6 +367,7 @@ STATIC const mp_rom_map_elem_t mdac_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_start), MP_ROM_PTR(&mdac_start_obj) },
     { MP_ROM_QSTR(MP_QSTR_stop), MP_ROM_PTR(&mdac_stop_obj) },
     { MP_ROM_QSTR(MP_QSTR_mode), MP_ROM_PTR(&mdac_mode_obj) },
+    { MP_ROM_QSTR(MP_QSTR_dump), MP_ROM_PTR(&mdac_dump_obj) },
     { MP_ROM_QSTR(MP_QSTR_enqueue_data), MP_ROM_PTR(&mdac_enqueue_data_obj) },
     { MP_ROM_QSTR(MP_QSTR_clear_queue), MP_ROM_PTR(&mdac_clear_queue_obj) },
     { MP_ROM_QSTR(MP_QSTR_step), MP_ROM_PTR(&mdac_step_obj) },
