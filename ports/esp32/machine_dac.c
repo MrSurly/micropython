@@ -35,7 +35,7 @@
 
 #include "py/runtime.h"
 #include "py/mphal.h"
-#include "py/objarray.h"
+#include "py/objstr.h"
 
 #include "modmachine.h"
 #include "machine_timer.h"
@@ -49,7 +49,8 @@ typedef enum {
 
 typedef struct Qitem {
   struct Qitem* next;
-  mp_obj_t item;
+  mp_obj_str_t* item; 
+  size_t   index;
 } Qitem;
 
 typedef struct {
@@ -71,12 +72,15 @@ int queue_size(Qhead* q) {
 }
 
 // Push item onto tail
-int queue_push(Qhead* q, mp_obj_t* item) {
-  Qitem* i = (Qitem*)malloc(sizeof(Qitem));
-  if (i == NULL) {
-    return 0;
+int queue_push(Qhead* q, mp_obj_t* item_in) {
+    mp_obj_str_t *item = (mp_obj_str_t*)item_in;
+    Qitem *i = (Qitem *)malloc(sizeof(Qitem));
+    if (i == NULL)
+    {
+        return 0;
   }
   i->item = item;
+  i->index = 0;
   i->next = NULL;
   if (queue_empty(q)) {
     q->head = q->tail = i;
@@ -89,7 +93,7 @@ int queue_push(Qhead* q, mp_obj_t* item) {
 }
 
 // pop item from head
-mp_obj_t* queue_pop(Qhead* q) {
+mp_obj_str_t* queue_pop(Qhead* q) {
   if (queue_empty(q)) {
     return NULL;
   }
@@ -101,7 +105,7 @@ mp_obj_t* queue_pop(Qhead* q) {
   if (q->head == NULL) {
     q->tail = NULL;
   }
-  mp_obj_t* r = i->item;
+  mp_obj_str_t* r = i->item;
   free(i);
   return r;
 }
@@ -114,13 +118,12 @@ typedef struct _mdac_obj_t {
     SemaphoreHandle_t* mutex;
     Qhead queue;
     Qitem* cur_queue_item;
-    mp_obj_t iter;
     dac_mode_t mode;
 } mdac_obj_t;
 
 STATIC mdac_obj_t mdac_obj[] = {
-    {{&machine_dac_type}, GPIO_NUM_25, DAC_CHANNEL_1, NULL, NULL, {}, NULL, NULL, CIRCULAR},
-    {{&machine_dac_type}, GPIO_NUM_26, DAC_CHANNEL_2, NULL, NULL, {}, NULL, NULL, CIRCULAR},
+    {{&machine_dac_type}, GPIO_NUM_25, DAC_CHANNEL_1, NULL, NULL, {}, NULL, CIRCULAR},
+    {{&machine_dac_type}, GPIO_NUM_26, DAC_CHANNEL_2, NULL, NULL, {}, NULL, CIRCULAR},
 };
 
 
@@ -174,11 +177,10 @@ STATIC bool mdac_output_next (mdac_obj_t* self, uint8_t* byte_out) {
         return false;
       }
       self->cur_queue_item = self->queue.head;
-      self->iter = mp_getiter(self->cur_queue_item->item, NULL);
+      self->cur_queue_item->index = 0;
     } 
-    mp_obj_t item;
 
-    while((item = mp_iternext(self->iter)) == MP_OBJ_STOP_ITERATION) {
+    if(self->cur_queue_item->index >= self->cur_queue_item->item->len) {
       // If CIRCULAR, and
       // all queue entries are empty arrays
       // this while loop will never exit.
@@ -189,27 +191,48 @@ STATIC bool mdac_output_next (mdac_obj_t* self, uint8_t* byte_out) {
       if (self->cur_queue_item == NULL && self->mode == CIRCULAR) {
           self->cur_queue_item = self->queue.head;
       }
-      if (self->cur_queue_item == NULL) {
-        // leave loop with 
-        // item == MP_OBJ_STOP_ITERATION
-        break;
+      if (self->cur_queue_item != NULL) {
+        self->cur_queue_item->index = 0;
       }
-      self->iter = mp_getiter(self->cur_queue_item->item, NULL);
     }
 
-  if (item != MP_OBJ_STOP_ITERATION) {
+  if (self->cur_queue_item != NULL) {
     // we don't trap any error here
     // not sure what to do if we did 
     // have an error
-    uint8_t byte = mp_obj_get_int(item);
+    uint8_t byte = self->cur_queue_item->item->data[self->cur_queue_item->index];
     dac_output_voltage(self->dac_id, byte);
     if (byte_out != NULL) {
       *byte_out = byte;
     }
+    ++self->cur_queue_item->index;
     return true;
   }
   return false;
 }
+
+STATIC mp_obj_t mdac_step(mp_obj_t self_in) {
+  mdac_obj_t* self = self_in;
+  uint8_t byte_out;
+  if (self->timer) {
+    machine_timer_disable(self->timer);
+  }
+  xSemaphoreTake(self->mutex, portMAX_DELAY);
+  bool data_output = mdac_output_next(self, &byte_out);
+  xSemaphoreGive(self->mutex);
+  return data_output ? MP_OBJ_NEW_SMALL_INT(byte_out) : mp_const_none;
+}
+MP_DEFINE_CONST_FUN_OBJ_1(mdac_step_obj, mdac_step);
+
+STATIC mp_obj_t mdac_queue_size(mp_obj_t self_in) {
+  mdac_obj_t* self = self_in;
+  xSemaphoreTake(self->mutex, portMAX_DELAY);
+  size_t size = self->queue.size;
+  xSemaphoreGive(self->mutex);
+  return mp_obj_new_int(size);
+}
+MP_DEFINE_CONST_FUN_OBJ_1(mdac_queue_size_obj, mdac_queue_size);
+
 STATIC mp_obj_t mdac_dump(mp_obj_t self_in) {
   mdac_obj_t* self = self_in;
   printf("===\n");
@@ -229,19 +252,6 @@ STATIC mp_obj_t mdac_dump(mp_obj_t self_in) {
   return mp_const_none;
 }
 MP_DEFINE_CONST_FUN_OBJ_1(mdac_dump_obj, mdac_dump);
-
-STATIC mp_obj_t mdac_step(mp_obj_t self_in) {
-  mdac_obj_t* self = self_in;
-  uint8_t byte_out;
-  if (self->timer) {
-    machine_timer_disable(self->timer);
-  }
-  xSemaphoreTake(self->mutex, portMAX_DELAY);
-  bool data_output = mdac_output_next(self, &byte_out);
-  xSemaphoreGive(self->mutex);
-  return data_output ? MP_OBJ_NEW_SMALL_INT(byte_out) : mp_const_none;
-}
-MP_DEFINE_CONST_FUN_OBJ_1(mdac_step_obj, mdac_step);
 
 // called by the timer
 STATIC void mdac_callback(void *self_in) {
@@ -277,7 +287,6 @@ STATIC mp_obj_t mdac_clear_queue(mp_obj_t self_in) {
   machine_timer_disable(self->timer);
   xSemaphoreTake(self->mutex, portMAX_DELAY);
   self->cur_queue_item = NULL;
-  self->iter = NULL;
   while(queue_pop(&self->queue)!= NULL) {}
   xSemaphoreGive(self->mutex);
   return mp_const_none;
@@ -370,6 +379,7 @@ STATIC const mp_rom_map_elem_t mdac_locals_dict_table[] = {
     { MP_ROM_QSTR(MP_QSTR_dump), MP_ROM_PTR(&mdac_dump_obj) },
     { MP_ROM_QSTR(MP_QSTR_enqueue_data), MP_ROM_PTR(&mdac_enqueue_data_obj) },
     { MP_ROM_QSTR(MP_QSTR_clear_queue), MP_ROM_PTR(&mdac_clear_queue_obj) },
+    { MP_ROM_QSTR(MP_QSTR_queue_size), MP_ROM_PTR(&mdac_queue_size_obj) },
     { MP_ROM_QSTR(MP_QSTR_step), MP_ROM_PTR(&mdac_step_obj) },
     { MP_ROM_QSTR(MP_QSTR_CIRCULAR), MP_ROM_INT(CIRCULAR) },
     { MP_ROM_QSTR(MP_QSTR_SEQUENTIAL), MP_ROM_INT(SEQUENTIAL) },
