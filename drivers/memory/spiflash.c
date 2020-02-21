@@ -69,7 +69,7 @@ STATIC void mp_spiflash_write_cmd_data(mp_spiflash_t *self, uint8_t cmd, size_t 
     if (c->bus_kind == MP_SPIFLASH_BUS_SPI) {
         // Note: len/data are unused for standard SPI
         mp_hal_pin_write(c->bus.u_spi.cs, 0);
-        c->bus.u_spi.proto->transfer(c->bus.u_spi.data, 1, &cmd, NULL);
+        c->bus.u_spi.proto->transfer(c->bus.u_spi.data, 1, &cmd, NULL, 8);
         mp_hal_pin_write(c->bus.u_spi.cs, 1);
     } else {
         c->bus.u_qspi.proto->write_cmd_data(c->bus.u_qspi.data, cmd, len, data);
@@ -81,9 +81,9 @@ STATIC void mp_spiflash_write_cmd_addr_data(mp_spiflash_t *self, uint8_t cmd, ui
     if (c->bus_kind == MP_SPIFLASH_BUS_SPI) {
         uint8_t buf[4] = {cmd, addr >> 16, addr >> 8, addr};
         mp_hal_pin_write(c->bus.u_spi.cs, 0);
-        c->bus.u_spi.proto->transfer(c->bus.u_spi.data, 4, buf, NULL);
+        c->bus.u_spi.proto->transfer(c->bus.u_spi.data, 4, buf, NULL, 8);
         if (len) {
-            c->bus.u_spi.proto->transfer(c->bus.u_spi.data, len, src, NULL);
+            c->bus.u_spi.proto->transfer(c->bus.u_spi.data, len, src, NULL, 8);
         }
         mp_hal_pin_write(c->bus.u_spi.cs, 1);
     } else {
@@ -96,8 +96,8 @@ STATIC uint32_t mp_spiflash_read_cmd(mp_spiflash_t *self, uint8_t cmd, size_t le
     if (c->bus_kind == MP_SPIFLASH_BUS_SPI) {
         uint32_t buf;
         mp_hal_pin_write(c->bus.u_spi.cs, 0);
-        c->bus.u_spi.proto->transfer(c->bus.u_spi.data, 1, &cmd, NULL);
-        c->bus.u_spi.proto->transfer(c->bus.u_spi.data, len, (void*)&buf, (void*)&buf);
+        c->bus.u_spi.proto->transfer(c->bus.u_spi.data, 1, &cmd, NULL, 8);
+        c->bus.u_spi.proto->transfer(c->bus.u_spi.data, len, (void*)&buf, (void*)&buf, 8);
         mp_hal_pin_write(c->bus.u_spi.cs, 1);
         return buf;
     } else {
@@ -110,8 +110,8 @@ STATIC void mp_spiflash_read_data(mp_spiflash_t *self, uint32_t addr, size_t len
     if (c->bus_kind == MP_SPIFLASH_BUS_SPI) {
         uint8_t buf[4] = {CMD_READ, addr >> 16, addr >> 8, addr};
         mp_hal_pin_write(c->bus.u_spi.cs, 0);
-        c->bus.u_spi.proto->transfer(c->bus.u_spi.data, 4, buf, NULL);
-        c->bus.u_spi.proto->transfer(c->bus.u_spi.data, len, dest, dest);
+        c->bus.u_spi.proto->transfer(c->bus.u_spi.data, 4, buf, NULL, 8);
+        c->bus.u_spi.proto->transfer(c->bus.u_spi.data, len, dest, dest, 8);
         mp_hal_pin_write(c->bus.u_spi.cs, 1);
     } else {
         c->bus.u_qspi.proto->read_cmd_qaddr_qdata(c->bus.u_qspi.data, CMD_C4READ, addr, len, dest);

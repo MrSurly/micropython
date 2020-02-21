@@ -151,7 +151,7 @@ STATIC int spi_find(mp_obj_t id) {
     }
 }
 
-void spi_transfer(const machine_hard_spi_obj_t * self, size_t len, const void * src, void * dest) {
+void spi_transfer(const machine_hard_spi_obj_t * self, size_t len, const void * src, void * dest, uint8_t bits) {
     nrfx_spi_xfer_desc_t xfer_desc = {
         .p_tx_buffer = src,
         .tx_length   = len,
@@ -377,51 +377,10 @@ STATIC void machine_hard_spi_deinit(mp_obj_t self_in) {
     nrfx_spi_uninit(self->p_spi);
 }
 
-STATIC void machine_hard_spi_transfer(mp_obj_base_t *self_in, size_t len, const uint8_t *src, uint8_t *dest) {
+STATIC void machine_hard_spi_transfer(mp_obj_base_t *self_in, size_t len, const uint8_t *src, uint8_t *dest, uint8_t bits) {
     const machine_hard_spi_obj_t *self = (machine_hard_spi_obj_t*)self_in;
-    spi_transfer(self, len, src, dest);
+    spi_transfer(self, len, src, dest, bits);
 }
-
-
-STATIC mp_obj_t mp_machine_spi_read(size_t n_args, const mp_obj_t *args) {
-    vstr_t vstr;
-    vstr_init_len(&vstr, mp_obj_get_int(args[1]));
-    memset(vstr.buf, n_args == 3 ? mp_obj_get_int(args[2]) : 0, vstr.len);
-    spi_transfer(args[0], vstr.len, vstr.buf, vstr.buf);
-    return mp_obj_new_str_from_vstr(&mp_type_bytes, &vstr);
-}
-MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mp_machine_spi_read_obj, 2, 3, mp_machine_spi_read);
-
-STATIC mp_obj_t mp_machine_spi_readinto(size_t n_args, const mp_obj_t *args) {
-    mp_buffer_info_t bufinfo;
-    mp_get_buffer_raise(args[1], &bufinfo, MP_BUFFER_WRITE);
-    memset(bufinfo.buf, n_args == 3 ? mp_obj_get_int(args[2]) : 0, bufinfo.len);
-    spi_transfer(args[0], bufinfo.len, bufinfo.buf, bufinfo.buf);
-    return mp_const_none;
-}
-MP_DEFINE_CONST_FUN_OBJ_VAR_BETWEEN(mp_machine_spi_readinto_obj, 2, 3, mp_machine_spi_readinto);
-
-STATIC mp_obj_t mp_machine_spi_write(mp_obj_t self, mp_obj_t wr_buf) {
-    mp_buffer_info_t src;
-    mp_get_buffer_raise(wr_buf, &src, MP_BUFFER_READ);
-    spi_transfer(self, src.len, (const uint8_t*)src.buf, NULL);
-    return mp_const_none;
-}
-MP_DEFINE_CONST_FUN_OBJ_2(mp_machine_spi_write_obj, mp_machine_spi_write);
-
-STATIC mp_obj_t mp_machine_spi_write_readinto(mp_obj_t self, mp_obj_t wr_buf, mp_obj_t rd_buf) {
-    mp_buffer_info_t src;
-    mp_get_buffer_raise(wr_buf, &src, MP_BUFFER_READ);
-    mp_buffer_info_t dest;
-    mp_get_buffer_raise(rd_buf, &dest, MP_BUFFER_WRITE);
-    if (src.len != dest.len) {
-        mp_raise_ValueError("buffers must be the same length");
-    }
-    spi_transfer(self, src.len, src.buf, dest.buf);
-    return mp_const_none;
-}
-MP_DEFINE_CONST_FUN_OBJ_3(mp_machine_spi_write_readinto_obj, mp_machine_spi_write_readinto);
-
 
 STATIC const mp_machine_spi_p_t machine_hard_spi_p = {
     .transfer = machine_hard_spi_transfer,

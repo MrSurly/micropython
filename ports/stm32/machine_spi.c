@@ -122,9 +122,9 @@ STATIC void machine_hard_spi_deinit(mp_obj_base_t *self_in) {
     spi_deinit(self->spi);
 }
 
-STATIC void machine_hard_spi_transfer(mp_obj_base_t *self_in, size_t len, const uint8_t *src, uint8_t *dest) {
+STATIC void machine_hard_spi_transfer(mp_obj_base_t *self_in, size_t len, const uint8_t *src, uint8_t *dest, uint8_t bits) {
     machine_hard_spi_obj_t *self = (machine_hard_spi_obj_t*)self_in;
-    spi_transfer(self->spi, len, src, dest, SPI_TRANSFER_TIMEOUT(len));
+    spi_transfer(self->spi, len, src, dest, SPI_TRANSFER_TIMEOUT(len), bits);
 }
 
 STATIC const mp_machine_spi_p_t machine_hard_spi_p = {

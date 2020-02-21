@@ -70,6 +70,8 @@ const char * nrfx_error_code_lookup(uint32_t err_code);
 #define mp_hal_pin_od_high(p)    mp_hal_pin_high(p)
 #define mp_hal_pin_open_drain(p) nrf_gpio_cfg_input(p->pin, NRF_GPIO_PIN_NOPULL)
 
+#define MP_HAL_PIN_FMT "%u"
+#define mp_hal_pin_name(p) (p)
 
 // TODO: empty implementation for now. Used by machine_spi.c:69
 #define mp_hal_delay_us_fast(p)

@@ -452,7 +452,7 @@ STATIC HAL_StatusTypeDef spi_wait_dma_finished(const spi_t *spi, uint32_t t_star
     return HAL_OK;
 }
 
-void spi_transfer(const spi_t *self, size_t len, const uint8_t *src, uint8_t *dest, uint32_t timeout) {
+void spi_transfer(const spi_t *self, size_t len, const uint8_t *src, uint8_t *dest, uint32_t timeout, uint8_t bits) {
     // Note: there seems to be a problem sending 1 byte using DMA the first
     // time directly after the SPI/DMA is initialised.  The cause of this is
     // unknown but we sidestep the issue by using polling for 1 byte transfer.
@@ -642,9 +642,9 @@ STATIC int spi_proto_ioctl(void *self_in, uint32_t cmd) {
     return 0;
 }
 
-STATIC void spi_proto_transfer(void *self_in, size_t len, const uint8_t *src, uint8_t *dest) {
+STATIC void spi_proto_transfer(void *self_in, size_t len, const uint8_t *src, uint8_t *dest, uint8_t bits) {
     spi_proto_cfg_t *self = (spi_proto_cfg_t*)self_in;
-    spi_transfer(self->spi, len, src, dest, SPI_TRANSFER_TIMEOUT(len));
+    spi_transfer(self->spi, len, src, dest, SPI_TRANSFER_TIMEOUT(len), bits);
 }
 
 const mp_spi_proto_t spi_proto = {

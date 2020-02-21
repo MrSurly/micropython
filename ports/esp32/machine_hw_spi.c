@@ -237,7 +237,7 @@ STATIC void machine_hw_spi_deinit(mp_obj_base_t *self_in) {
     }
 }
 
-STATIC void machine_hw_spi_transfer(mp_obj_base_t *self_in, size_t len, const uint8_t *src, uint8_t *dest) {
+STATIC void machine_hw_spi_transfer(mp_obj_base_t *self_in, size_t len, const uint8_t *src, uint8_t *dest, uint8_t bits) {
     machine_hw_spi_obj_t *self = MP_OBJ_TO_PTR(self_in);
 
     if (self->state == MACHINE_HW_SPI_STATE_DEINIT) {
@@ -245,46 +245,60 @@ STATIC void machine_hw_spi_transfer(mp_obj_base_t *self_in, size_t len, const ui
         return;
     }
 
-    struct spi_transaction_t transaction = { 0 };
+    bits = bits ? bits : self->bits;
+    bool wholeBytes = bits % 8 == 0;
+    if (bits == 0) {
+        mp_raise_ValueError("bits cannot be 0");
+    }
 
-    // Round to nearest whole set of bits
-    int bits_to_send = len * 8 / self->bits * self->bits;
 
+    int bytesPerChunk = (bits + 7) / 8;
+    // round length down as needed (possibly to zero)
+    len = len / bytesPerChunk * bytesPerChunk;
+    if(len == 0) {
+        return;
+    }
 
-    if (len <= 4) {
-        if (src != NULL) {
-            memcpy(&transaction.tx_data, src, len);
-        }
+    struct spi_transaction_t transaction;
+    while(len) {
 
-        transaction.flags = SPI_TRANS_USE_TXDATA | SPI_TRANS_USE_RXDATA;
-        transaction.length = bits_to_send;
-        spi_device_transmit(self->spi, &transaction);
-
-        if (dest != NULL) {
-            memcpy(dest, &transaction.rx_data, len);
-        }
-    } else {
-        int offset = 0;
-        int bits_remaining = bits_to_send;
-
-        while (bits_remaining) {
-            memset(&transaction, 0, sizeof(transaction));
-
-            transaction.length =
-                bits_remaining > MP_HW_SPI_MAX_XFER_BITS ? MP_HW_SPI_MAX_XFER_BITS : bits_remaining;
-
+        memset(&transaction, 0, sizeof(transaction));
+        if ((bits <= 32 && !wholeBytes) || len <= 4) {
             if (src != NULL) {
-                transaction.tx_buffer = src + offset;
+                memcpy(&transaction.tx_data, src, bytesPerChunk);
+            }
+
+            transaction.flags = SPI_TRANS_USE_TXDATA | SPI_TRANS_USE_RXDATA;
+            transaction.length = bits;
+            spi_device_transmit(self->spi, &transaction);
+
+            if (dest != NULL) {
+                memcpy(dest, &transaction.rx_data, bytesPerChunk);
+            }
+            src += bytesPerChunk;
+            len -= bytesPerChunk;
+        } else {
+            if (wholeBytes) {
+                transaction.length = len * 8 / bits * bits;
+            } else {
+                transaction.length = bits;
+            }
+            transaction.length =
+                transaction.length > MP_HW_SPI_MAX_XFER_BITS
+                    ? MP_HW_SPI_MAX_XFER_BITS
+                    : transaction.length;
+
+            size_t bytesSent = (transaction.length + 7) / 8;
+            if (src != NULL) {
+                transaction.tx_buffer = src;
+                src += bytesSent;
             }
             if (dest != NULL) {
-                transaction.rx_buffer = dest + offset;
+                transaction.rx_buffer = dest;
+                dest += bytesSent;
             }
-
+            len -= bytesSent;
             spi_device_transmit(self->spi, &transaction);
-            bits_remaining -= transaction.length;
-
-            // doesn't need ceil(); loop ends when bits_remaining is 0
-            offset += transaction.length / 8;
         }
     }
 }

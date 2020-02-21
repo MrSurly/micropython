@@ -190,7 +190,7 @@ STATIC mp_obj_t pyb_spi_send(size_t n_args, const mp_obj_t *pos_args, mp_map_t *
     pyb_buf_get_for_send(args[0].u_obj, &bufinfo, data);
 
     // send the data
-    spi_transfer(self->spi, bufinfo.len, bufinfo.buf, NULL, args[1].u_int);
+    spi_transfer(self->spi, bufinfo.len, bufinfo.buf, NULL, args[1].u_int, 8);
 
     return mp_const_none;
 }
@@ -223,7 +223,7 @@ STATIC mp_obj_t pyb_spi_recv(size_t n_args, const mp_obj_t *pos_args, mp_map_t *
     mp_obj_t o_ret = pyb_buf_get_for_recv(args[0].u_obj, &vstr);
 
     // receive the data
-    spi_transfer(self->spi, vstr.len, NULL, (uint8_t*)vstr.buf, args[1].u_int);
+    spi_transfer(self->spi, vstr.len, NULL, (uint8_t*)vstr.buf, args[1].u_int, 8);
 
     // return the received data
     if (o_ret != MP_OBJ_NULL) {
@@ -292,7 +292,7 @@ STATIC mp_obj_t pyb_spi_send_recv(size_t n_args, const mp_obj_t *pos_args, mp_ma
     }
 
     // do the transfer
-    spi_transfer(self->spi, bufinfo_send.len, bufinfo_send.buf, bufinfo_recv.buf, args[2].u_int);
+    spi_transfer(self->spi, bufinfo_send.len, bufinfo_send.buf, bufinfo_recv.buf, args[2].u_int, 8);
 
     // return the received data
     if (o_ret != MP_OBJ_NULL) {
@@ -338,9 +338,9 @@ STATIC const mp_rom_map_elem_t pyb_spi_locals_dict_table[] = {
 };
 STATIC MP_DEFINE_CONST_DICT(pyb_spi_locals_dict, pyb_spi_locals_dict_table);
 
-STATIC void spi_transfer_machine(mp_obj_base_t *self_in, size_t len, const uint8_t *src, uint8_t *dest) {
+STATIC void spi_transfer_machine(mp_obj_base_t *self_in, size_t len, const uint8_t *src, uint8_t *dest, uint8_t bits) {
     pyb_spi_obj_t *self = (pyb_spi_obj_t*)self_in;
-    spi_transfer(self->spi, len, src, dest, SPI_TRANSFER_TIMEOUT(len));
+    spi_transfer(self->spi, len, src, dest, SPI_TRANSFER_TIMEOUT(len), bits);
 }
 
 STATIC const mp_machine_spi_p_t pyb_spi_p = {
